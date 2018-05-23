@@ -6,10 +6,10 @@ contract TokenBase is Pausable{
 
   event Mint(address indexed to, uint amount, uint date);
 
-  string public name;
-  string public symbol;
-  uint8 public decimals;
-  uint public maxTotalSupply;
+  string internal name_;
+  string internal symbol_;
+  uint8 internal decimals_;
+  uint internal maxTotalSupply_;
 
   function kill() public onlyOwner returns(bool){
     selfdestruct(owner);
@@ -18,7 +18,7 @@ contract TokenBase is Pausable{
 
   function mint(uint _amount) external onlyOwner returns (bool) {
     totalSupply_ = totalSupply_.add(_amount);
-    assert(totalSupply_ <= maxTotalSupply);
+    assert(totalSupply_ <= maxTotalSupply_);
 
     balances[owner] = balances[owner].add(_amount);
     emit Mint(owner, _amount, now);

@@ -32,7 +32,7 @@ contract ERC20 is ERC20Interface{
     return balances[_owner];
   }
   
-  function _transfer(address _from, address _to, uint _value) private{
+  function _transfer(address _from, address _to, uint _value) internal{
     balances[_from] = balances[_from].sub(_value);
     balances[_to] = balances[_to].add(_value);
 
