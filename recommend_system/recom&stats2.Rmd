@@ -1,0 +1,194 @@
+#Actions with server Azure
+```{r setting connection}
+library(RODBC)    
+
+connectionString <- "Driver={ODBC Driver 13 for SQL Server};Server=tcp:chainreaction.database.windows.net,1433;Database=chainreaction;Uid=hacker@chainreaction;Pwd=kotbumnahpro4$;Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+
+myconn <- odbcDriverConnect(connectionString)
+```
+
+#Pull/push
+Не исполнять следующие два чанка (они просто, чтобы не потерять).
+Они тянут из сервера и возвращают
+```{r saving data to SQL server}
+# Save the table to the database
+sqlSave(channel=myconn, dat=iris, tablename = "iris")
+```
+
+```{r request data from SQL server}
+#request data
+sqlQuery_m1 <- "SELECT * FROM iris"
+m1 <- sqlQuery(myconn, sqlQuery_m1)
+```
+
+#Блок про статистику guest и worker
+##Pulling data
+```{r}
+userid_fromhtml = "34"
+users <- sqlQuery(myconn, "SELECT * FROM users3")
+
+transactions <- sqlQuery(myconn, "SELECT * FROM transactions3")
+
+products <- sqlQuery(myconn, "SELECT * FROM products3")
+products$description <- as.character(products$description)
+products$name <- as.character(products$name)
+products <- dplyr::rename(products, "product" = "id")
+```
+
+##Последние 5 покупок
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+#нашли данные по конкретному юзеру
+walletCertain = users[which(users$id == userid_fromhtml),]
+walletCertain = walletCertain$wallet
+
+#узнаем, что именно он купил
+trCertainUser = dplyr::filter(transactions, as.character(from) == as.character(walletCertain))
+trCertainUserPro <- left_join(trCertainUser, products, by = "product")
+trCertainUserPro <- trCertainUserPro %>% dplyr::arrange(-time)
+if (nrow(trCertainUserPro) > 5){
+  trCertainUserPro <- trCertainUserPro[1:5,]
+}
+
+trCertainUserPro$name
+```
+
+##Recom system guest и worker
+```{r message=FALSE, warning=FALSE}
+library(tidyr)
+
+recData <- left_join(transactions, dplyr::rename(dplyr::select(users, id, wallet), "from" = "wallet"))
+recData <- dplyr::select(recData, id, value, product)
+recData <- recData %>% group_by(id, product) %>% summarise_all(sum)
+recData <- spread(recData, key = product, value = value)
+
+recData <- as.data.frame(recData)
+rownames(recData) = recData$id
+recData = dplyr::select(recData, -id)
+
+library(recommenderlab)
+
+recData = as.matrix(recData)
+r = as(recData, "realRatingMatrix")
+
+r <- binarize(r, minRating = 2)
+
+recc_model <- Recommender(data = r, method = "IBCF", parameter = list(k = 30)) 
+```
+
+##Предсказываем рекомендации
+```{r}
+recc_predicted <- predict(object = recc_model, newdata = r[5,])
+
+pred <- recc_predicted@itemLabels[recc_predicted@items[[1]]]
+
+#узнаём заголовки рекомендованного
+products$product <- as.character(products$product)
+indexTitle = match(products$product, pred)
+indexTitle <- na.omit(indexTitle)
+products$name[indexTitle]
+```
+
+#Блок по employer
+##Последние 5 перечислений заработных плат
+```{r}
+certainEmployerId <- "78"
+certainEmployer <- dplyr::filter(users, id == certainEmployerId)
+
+certainEmployerWallet <- certainEmployer$wallet
+
+transactions$from <- as.character(transactions$from)
+certainEmployerWallet <- as.character(certainEmployerWallet)
+
+certainEmployerTrans <- dplyr::filter(transactions, from == certainEmployerWallet)
+
+certainEmployerTrans <- certainEmployerTrans %>% arrange(-time)
+
+if (nrow(certainEmployerTrans) > 5){
+  certainEmployerTrans <- certainEmployerTrans[1:5,]
+}
+
+certainEmployerTrans <- inner_join(certainEmployerTrans, dplyr::rename(dplyr::select(users, wallet, name), "to" = "wallet"), by = "to")
+
+certainEmployerTrans <- dplyr::select(certainEmployerTrans, name, value, time)
+```
+
+
+#Играем с изменением текущего баланса
+добавить строку баланс
+получаю на вход конечное значение баланса
+создаем датасет: x=  (последнее значение баланса, промежуточное, промежуточное, начальное), y = time 
+
+```{r}
+userid_fromhtml_balance = "78" #уже выше есть это присвоение
+
+#узнаем кошелек этого парня крутого
+walletCertainBal = users[which(users$id == userid_fromhtml_balance),]
+walletCertainBal = walletCertainBal$wallet
+
+#расходы пацаны
+costs = dplyr::filter(transactions, from == walletCertainBal)
+costs$value = -costs$value
+
+#доходы
+profits = dplyr::filter(transactions, to == walletCertainBal)
+
+#объединяем доходы с расходами
+costsProfit = rbind(profits, costs)
+
+#вверху датасета самое актуальное, внизу - самое старое
+costsProfit <- costsProfit %>% dplyr::arrange(-time)
+
+#вычисляем стартовый баланс
+last_balance = 6548
+changingBalance = data.frame(balance = last_balance, time = costsProfit$time[1] + 1, changes = 0)
+for (row in 1:nrow(costsProfit)){
+  changingBalance = rbind(changingBalance, data.frame(changes = costsProfit$value[row], balance = changingBalance$balance[row] + costsProfit$value[row], time = costsProfit$time[row]))
+}
+
+#вначале теперь самое первое по времени (начальное) значение баланса. В конце - на текущий момент
+changingBalance <- changingBalance %>% dplyr::arrange(time) 
+startbalance = changingBalance$balance[1]
+```
+
+##dynamic profit
+```{r}
+changingBalance$dynamicProfit[1] = changingBalance$changes[1]
+
+for (row in 2:nrow(changingBalance)){
+  changingBalance$dynamicProfit[row] = changingBalance$dynamicProfit[row - 1] + changingBalance$changes[row]
+}
+
+#датасет changingBalance содержит переменную dynamicProfit (по оси y) и переменную time (по оси х график)
+#для второго графа также есть инофрмация для второго графа (по оси y теперь состояние текущего счёта)
+
+sqlUpdate(channel=myconn, dat=changingBalance, tablename = "users")
+```
+
+##max dd
+```{r}
+maxdd = max(changingBalance$dynamicProfit) - min(changingBalance$dynamicProfit)
+#maxDDinterpretation <- ifelse(maxdd > 56, "Vse super", "Not good")
+```
+
+
+
+
+#demo part
+Это создание пробников. Не исполнять. 
+```{r}
+users <- read.csv("users.csv", sep = ";", stringsAsFactors = F)
+users1$Lastname 
+colnames(users) <- c("UserId", "FirstName", "LastName", "Wallet", "Role")
+sqlUpdate(channel=myconn, dat=users, tablename = "users")
+
+transactions <- read.csv("transactions.csv", sep = ";", stringsAsFactors = F)
+RODBC::sqlSave(channel=myconn, dat=transactions, tablename = "transactions3", rownames=F)
+
+products <- read.csv("products.csv", sep = ";", stringsAsFactors = F)
+sqlSave(channel=myconn, dat=products, tablename = "products3")
+```
+
+
+
+

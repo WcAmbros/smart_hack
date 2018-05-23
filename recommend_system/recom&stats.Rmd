@@ -26,11 +26,11 @@ m1 <- sqlQuery(myconn, sqlQuery_m1)
 #Pulling data
 ```{r}
 userid_fromhtml = "34"
-users <- sqlQuery(myconn, "SELECT * FROM users1")
+users <- sqlQuery(myconn, "SELECT * FROM users3")
 
-transactions <- sqlQuery(myconn, "SELECT * FROM transactions2")
+transactions <- sqlQuery(myconn, "SELECT * FROM transactions3")
 
-products <- sqlQuery(myconn, "SELECT * FROM products1")[-3,]
+products <- sqlQuery(myconn, "SELECT * FROM products3")
 products$description <- as.character(products$description)
 products$name <- as.character(products$name)
 products <- dplyr::rename(products, "product" = "id")
@@ -69,7 +69,7 @@ library(recommenderlab)
 recData = as.matrix(recData)
 r = as(recData, "realRatingMatrix")
 
-r <- binarize(r, minRating = 5)
+r <- binarize(r, minRating = 2)
 
 recc_model <- Recommender(data = r, method = "IBCF", parameter = list(k = 30)) 
 ```
@@ -79,19 +79,25 @@ recc_model <- Recommender(data = r, method = "IBCF", parameter = list(k = 30))
 recc_predicted <- predict(object = recc_model, newdata = r[2,])
 
 recc_predicted@itemLabels[recc_predicted@items[[1]]]
+
+#узнаём заголовки рекомендованного
+products$product <- as.character(products$product)
+indexTitle = match(products$product, pred)
+indexTitle <- na.omit(indexTitle)
+products$name[indexTitle]
 ```
 
 #demo part
 Это создание пробников. Не исполнять. 
 ```{r}
-users <- read.csv("users.csv", sep = ";")
-sqlSave(channel=myconn, dat=users, tablename = "users1")
+users <- read.csv("users.csv", sep = ";", stringsAsFactors = F)
+sqlSave(channel=myconn, dat=users, tablename = "users3")
 
-transactions <- read.csv("transactions.csv", sep = ";")
-RODBC::sqlSave(channel=myconn, dat=transactions, tablename = "transactions2", rownames=F)
+transactions <- read.csv("transactions.csv", sep = ";", stringsAsFactors = F)
+RODBC::sqlSave(channel=myconn, dat=transactions, tablename = "transactions3", rownames=F)
 
-products <- read.csv("products.csv", sep = ";")
-sqlUpdate(channel=myconn, dat=products, tablename = "products1")
+products <- read.csv("products.csv", sep = ";", stringsAsFactors = F)
+sqlUpdate(channel=myconn, dat=products, tablename = "products3")
 ```
 
 

@@ -1,0 +1,49 @@
+<%=rubETH%> 
+<%=rubBIT%> 
+<%=rubSMRT%> 
+<%=PriceBTC%> 
+<%=smartcitycoin_price%> 
+<%=PriceETH%>
+public int rubETH=1; 
+public int rubBIT = 1; 
+public int rubSMRT = 1; 
+public int PriceBTC = 1; 
+public int smartcitycoin_price = 1; 
+public int PriceETH = 1; 
+
+protected void Page_Load(object sender, EventArgs e) 
+{ 
+string url = "https://api.coinmarketcap.com/v2/ticker/?limit=10";; 
+HttpWebRequest myRequest = (HttpWebRequest)WebRequest.Create(url); 
+myRequest.Method = "GET"; 
+WebResponse myResponse = myRequest.GetResponse(); 
+StreamReader sr = new StreamReader(myResponse.GetResponseStream(), System.Text.Encoding.UTF8); 
+string result = sr.ReadToEnd(); 
+sr.Close(); 
+myResponse.Close(); 
+string btc = "Bitcoin"; 
+int indexOfBTC = result.IndexOf(btc); 
+result = result.Substring(indexOfBTC, 1100); 
+int indexOfPrice = result.IndexOf("price"); 
+int finish = indexOfPrice + 8; 
+string price = result.Substring(finish, 5); 
+price = price.Substring(0, 3); 
+// цены криптоактива в долларах 
+PriceBTC = Int32.Parse(price); 
+string eth = "Ethereum"; 
+int indexOfETH = result.IndexOf(eth); 
+result = result.Substring(716, 320); 
+indexOfPrice = result.IndexOf("price"); 
+finish = indexOfPrice + 8; 
+price = result.Substring(finish, 5); 
+price = price.Substring(0, 3); 
+// цены криптоактива в долларах 
+PriceETH = Int32.Parse(price); 
+string smartcitycoin = "Smartcity_coin"; 
+// цены криптоактива в долларах 
+smartcitycoin_price = 100; 
+int dollarprice = 60; 
+// цены криптоактивов в рублях 
+rubETH = dollarprice * PriceETH; 
+rubBIT = dollarprice * PriceBTC; 
+rubSMRT = dollarprice * smartcitycoin_price;}
